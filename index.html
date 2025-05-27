@@ -126,10 +126,7 @@
             errorEl.classList.add('hidden');
 
             try {
-                console.log('开始检测系统状态...');
-
                 // 首先检查数据库绑定
-                console.log('检查数据库绑定...');
                 const dbResponse = await fetch('/api/setup/check-database', {
                     method: 'GET',
                     headers: {
@@ -138,29 +135,22 @@
                     }
                 });
 
-                console.log('数据库检查响应状态:', dbResponse.status);
-                console.log('数据库检查响应头:', Object.fromEntries(dbResponse.headers.entries()));
-
                 // 检查响应是否为 JSON
                 const contentType = dbResponse.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     const responseText = await dbResponse.text();
-                    console.error('API 返回非 JSON 响应:', responseText.substring(0, 200));
                     throw new Error('API 配置错误：返回了 HTML 页面而不是 JSON 数据。请检查 Cloudflare Pages Functions 配置。');
                 }
 
                 const dbResult = await dbResponse.json();
-                console.log('数据库检查结果:', dbResult);
 
                 if (!dbResult.success) {
                     // 数据库未绑定，跳转到数据库绑定提示页面
-                    console.log('数据库未绑定，跳转到数据库绑定提示页面');
                     window.location.href = '/database-setup.html';
                     return;
                 }
 
                 // 数据库已绑定，检查是否已安装（检查是否有管理员账号）
-                console.log('检查管理员账号...');
                 const adminResponse = await fetch('/api/auth/check-admin', {
                     method: 'GET',
                     headers: {
@@ -172,23 +162,26 @@
                 const adminContentType = adminResponse.headers.get('content-type');
                 if (!adminContentType || !adminContentType.includes('application/json')) {
                     const responseText = await adminResponse.text();
-                    console.error('管理员检查 API 返回非 JSON 响应:', responseText.substring(0, 200));
                     throw new Error('管理员检查 API 配置错误');
                 }
 
                 const adminResult = await adminResponse.json();
-                console.log('管理员检查结果:', adminResult);
 
                 if (!adminResult.success || !adminResult.data.hasAdmin) {
                     // 没有管理员账号，需要完成安装
-                    console.log('没有管理员账号，跳转到安装页面');
                     window.location.href = '/setup.html';
                     return;
                 }
 
-                // 系统已安装，跳转到登录页面
-                console.log('系统已安装，跳转到登录页面');
-                window.location.href = '/login.html';
+                // 系统已安装，检查是否已登录
+                const token = localStorage.getItem('auth_token');
+                const userInfo = localStorage.getItem('user_info');
+
+                if (token && userInfo) {
+                    window.location.href = '/dashboard.html';
+                } else {
+                    window.location.href = '/login.html';
+                }
 
             } catch (error) {
                 console.error('系统状态检测失败:', error);

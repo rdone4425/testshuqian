@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>系统安装 - 书签导航</title>
-    <link rel="stylesheet" href="css/setup.css">
+    <link rel="stylesheet" href="/css/setup.css">
 </head>
 <body>
     <div class="setup-container">
         <div class="setup-card">
             <h1>📚 书签导航系统安装</h1>
-            
+
             <!-- 步骤指示器 -->
             <div class="steps">
                 <div class="step active" id="step1">
@@ -33,7 +33,7 @@
 
             <!-- 安装内容区域 -->
             <div class="setup-content">
-                
+
                 <!-- 步骤1: 检测数据库绑定 -->
                 <div class="setup-step" id="content-step1">
                     <h2>🔍 检测 D1 数据库绑定</h2>
@@ -61,6 +61,7 @@
                     </div>
                     <div class="step-actions">
                         <button class="btn-primary" id="btn-next-1" onclick="nextStep(2)" disabled>下一步</button>
+                        <button class="btn-secondary" onclick="manualCheckDatabase()">手动检测数据库</button>
                     </div>
                 </div>
 
@@ -98,24 +99,24 @@
                     <form class="admin-form" id="admin-form">
                         <div class="form-group">
                             <label for="admin-username">管理员用户名:</label>
-                            <input type="text" id="admin-username" name="username" required 
+                            <input type="text" id="admin-username" name="username" required
                                    placeholder="请输入管理员用户名" minlength="3" maxlength="20">
                             <small>用户名长度 3-20 个字符</small>
                         </div>
                         <div class="form-group">
                             <label for="admin-password">管理员密码:</label>
-                            <input type="password" id="admin-password" name="password" required 
+                            <input type="password" id="admin-password" name="password" required
                                    placeholder="请输入管理员密码" minlength="6">
                             <small>密码至少 6 个字符</small>
                         </div>
                         <div class="form-group">
                             <label for="admin-password-confirm">确认密码:</label>
-                            <input type="password" id="admin-password-confirm" name="passwordConfirm" required 
+                            <input type="password" id="admin-password-confirm" name="passwordConfirm" required
                                    placeholder="请再次输入密码">
                         </div>
                         <div class="form-group">
                             <label for="admin-email">邮箱 (可选):</label>
-                            <input type="email" id="admin-email" name="email" 
+                            <input type="email" id="admin-email" name="email"
                                    placeholder="用于密码找回">
                         </div>
                     </form>
@@ -154,6 +155,264 @@
         </div>
     </div>
 
-    <script src="js/setup.js"></script>
+    <script>
+        // 简化的安装管理器
+        let currentStep = 1;
+        let dbInfo = null;
+
+        // 手动检测数据库
+        async function manualCheckDatabase() {
+            console.log('手动检测数据库...');
+
+            try {
+                const response = await fetch('/api/setup/check-database');
+                const result = await response.json();
+
+                console.log('数据库检测结果:', result);
+
+                if (result.success) {
+                    // 成功
+                    document.getElementById('db-checking').classList.add('hidden');
+                    document.getElementById('db-success').classList.remove('hidden');
+                    document.getElementById('db-error').classList.add('hidden');
+                    document.getElementById('db-name').textContent = result.data.name || 'D1 Database';
+                    document.getElementById('btn-next-1').disabled = false;
+                    dbInfo = result.data;
+                    alert('数据库检测成功！');
+                } else {
+                    throw new Error(result.message || '检测失败');
+                }
+            } catch (error) {
+                console.error('检测失败:', error);
+                document.getElementById('db-checking').classList.add('hidden');
+                document.getElementById('db-success').classList.add('hidden');
+                document.getElementById('db-error').classList.remove('hidden');
+                document.getElementById('db-error-msg').textContent = error.message;
+                alert('数据库检测失败: ' + error.message);
+            }
+        }
+
+        // 自动检测数据库（页面加载后）
+        async function autoCheckDatabase() {
+            // 延迟3秒后自动检测
+            setTimeout(async () => {
+                try {
+                    await manualCheckDatabase();
+                } catch (error) {
+                    console.log('自动检测失败，请手动点击检测按钮');
+                }
+            }, 3000);
+        }
+
+        // 步骤导航
+        function nextStep(step) {
+            hideAllSteps();
+            showStep(step);
+            updateStepIndicator(step);
+            currentStep = step;
+        }
+
+        function prevStep(step) {
+            hideAllSteps();
+            showStep(step);
+            updateStepIndicator(step);
+            currentStep = step;
+        }
+
+        function hideAllSteps() {
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`content-step${i}`).classList.add('hidden');
+            }
+        }
+
+        function showStep(step) {
+            document.getElementById(`content-step${step}`).classList.remove('hidden');
+        }
+
+        function updateStepIndicator(currentStep) {
+            for (let i = 1; i <= 4; i++) {
+                const stepEl = document.getElementById(`step${i}`);
+                stepEl.classList.remove('active', 'completed');
+
+                if (i < currentStep) {
+                    stepEl.classList.add('completed');
+                } else if (i === currentStep) {
+                    stepEl.classList.add('active');
+                }
+            }
+        }
+
+        // 创建表格
+        async function createTables() {
+            const createBtn = document.getElementById('btn-create-tables');
+            const nextBtn = document.getElementById('btn-next-2');
+
+            createBtn.disabled = true;
+            createBtn.textContent = '创建中...';
+
+            const tables = [
+                {
+                    name: 'users',
+                    sql: `CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT UNIQUE NOT NULL,
+                        password TEXT NOT NULL,
+                        email TEXT,
+                        role TEXT DEFAULT 'admin',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )`
+                },
+                {
+                    name: 'categories',
+                    sql: `CREATE TABLE IF NOT EXISTS categories (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        description TEXT,
+                        icon TEXT,
+                        sort_order INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )`
+                },
+                {
+                    name: 'bookmarks',
+                    sql: `CREATE TABLE IF NOT EXISTS bookmarks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        url TEXT NOT NULL,
+                        description TEXT,
+                        icon TEXT,
+                        category_id INTEGER,
+                        sort_order INTEGER DEFAULT 0,
+                        is_featured BOOLEAN DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (category_id) REFERENCES categories (id)
+                    )`
+                }
+            ];
+
+            let successCount = 0;
+
+            for (const table of tables) {
+                try {
+                    document.getElementById(`${table.name}-status`).textContent = '⏳ 创建中...';
+
+                    const response = await fetch('/api/setup/create-table', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            tableName: table.name,
+                            sql: table.sql
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        document.getElementById(`${table.name}-status`).textContent = '✅ 创建成功';
+                        successCount++;
+                    } else {
+                        throw new Error(result.message || '创建失败');
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                } catch (error) {
+                    document.getElementById(`${table.name}-status`).textContent = '❌ 创建失败';
+                    console.error(`表格 ${table.name} 创建失败:`, error);
+                }
+            }
+
+            createBtn.textContent = '创建表格';
+            createBtn.disabled = false;
+
+            if (successCount === tables.length) {
+                createBtn.classList.add('hidden');
+                nextBtn.classList.remove('hidden');
+                alert('所有表格创建完成！');
+            } else {
+                alert(`创建完成，成功: ${successCount}/${tables.length}`);
+            }
+        }
+
+        // 创建管理员
+        async function createAdmin() {
+            const form = document.getElementById('admin-form');
+            const formData = new FormData(form);
+            const createBtn = document.getElementById('btn-create-admin');
+
+            const username = formData.get('username');
+            const password = formData.get('password');
+            const passwordConfirm = formData.get('passwordConfirm');
+            const email = formData.get('email');
+
+            if (!username || username.length < 3) {
+                alert('用户名至少需要3个字符');
+                return;
+            }
+
+            if (!password || password.length < 6) {
+                alert('密码至少需要6个字符');
+                return;
+            }
+
+            if (password !== passwordConfirm) {
+                alert('两次输入的密码不一致');
+                return;
+            }
+
+            createBtn.disabled = true;
+            createBtn.textContent = '创建中...';
+
+            try {
+                const response = await fetch('/api/setup/create-admin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        password,
+                        email
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('管理员账号创建成功！');
+                    nextStep(4);
+                } else {
+                    throw new Error(result.message || '管理员账号创建失败');
+                }
+
+            } catch (error) {
+                console.error('创建管理员失败:', error);
+                alert('创建管理员失败: ' + error.message);
+            } finally {
+                createBtn.disabled = false;
+                createBtn.textContent = '创建管理员';
+            }
+        }
+
+        // 前往登录页面
+        function goToLogin() {
+            window.location.href = '/login.html';
+        }
+
+        // 兼容原有的函数调用
+        function checkDatabase() {
+            manualCheckDatabase();
+        }
+
+        // 页面加载完成后自动检测数据库
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('页面加载完成，3秒后自动检测数据库...');
+            autoCheckDatabase();
+        });
+    </script>
 </body>
 </html>

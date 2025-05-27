@@ -7,7 +7,7 @@ class LoginManager {
         this.errorText = document.getElementById('error-text');
         this.btnText = this.loginBtn.querySelector('.btn-text');
         this.btnLoading = this.loginBtn.querySelector('.btn-loading');
-        
+
         this.init();
     }
 
@@ -36,23 +36,16 @@ class LoginManager {
             const token = localStorage.getItem('auth_token');
             if (!token) return;
 
-            const response = await fetch('/api/auth/verify', {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                // 已登录，跳转到主页
+            // 简单检查 token 是否存在且未过期
+            const userInfo = localStorage.getItem('user_info');
+            if (token && userInfo) {
                 window.location.href = '/dashboard.html';
             }
         } catch (error) {
             console.log('登录状态检查失败:', error);
             // 清除无效的 token
             localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
         }
     }
 
@@ -91,19 +84,20 @@ class LoginManager {
             if (result.success) {
                 // 登录成功
                 const { token, user } = result.data;
-                
+
                 // 保存认证信息
                 localStorage.setItem('auth_token', token);
                 localStorage.setItem('user_info', JSON.stringify(user));
-                
+
                 if (remember) {
                     // 如果选择记住我，设置更长的过期时间
                     localStorage.setItem('remember_login', 'true');
                 }
 
                 // 跳转到主页
+                alert('登录成功！');
                 window.location.href = '/dashboard.html';
-                
+
             } else {
                 // 登录失败
                 this.showError(result.message || '登录失败，请检查用户名和密码');
@@ -120,7 +114,7 @@ class LoginManager {
     // 设置加载状态
     setLoading(loading) {
         this.loginBtn.disabled = loading;
-        
+
         if (loading) {
             this.btnText.classList.add('hidden');
             this.btnLoading.classList.remove('hidden');
@@ -134,7 +128,7 @@ class LoginManager {
     showError(message) {
         this.errorText.textContent = message;
         this.errorMessage.classList.remove('hidden');
-        
+
         // 自动隐藏错误信息
         setTimeout(() => {
             this.hideError();
