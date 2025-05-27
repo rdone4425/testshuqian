@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安装调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #005a87;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { border-color: #28a745; background-color: #d4edda; }
+        .error { border-color: #dc3545; background-color: #f8d7da; }
+        .loading { color: #007cba; }
+        .status-box {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .hidden { display: none; }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007cba;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 安装系统调试</h1>
+    
+    <div class="debug-section">
+        <h3>1. JavaScript 加载测试</h3>
+        <div id="js-status" class="result">检查中...</div>
+        <button class="btn" onclick="testJavaScript()">测试 JavaScript</button>
+    </div>
+
+    <div class="debug-section">
+        <h3>2. DOM 元素测试</h3>
+        <div id="dom-status" class="result">检查中...</div>
+        <button class="btn" onclick="testDOM()">测试 DOM 元素</button>
+    </div>
+
+    <div class="debug-section">
+        <h3>3. 模拟数据库检测</h3>
+        <div class="status-box">
+            <div class="loading" id="db-checking">
+                <div class="spinner"></div>
+                <span>正在检测数据库绑定...</span>
+            </div>
+            <div class="success hidden" id="db-success">
+                <div class="icon">✅</div>
+                <div class="info">
+                    <h3>数据库绑定成功</h3>
+                    <p>数据库名称: <strong id="db-name">-</strong></p>
+                </div>
+            </div>
+            <div class="error hidden" id="db-error">
+                <div class="icon">❌</div>
+                <div class="info">
+                    <h3>数据库绑定失败</h3>
+                    <p id="db-error-msg">错误信息</p>
+                </div>
+            </div>
+        </div>
+        <button class="btn" id="btn-test-db" onclick="testDatabaseCheck()">模拟数据库检测</button>
+        <button class="btn" id="btn-next-1" onclick="alert('下一步按钮工作正常')" disabled>下一步</button>
+    </div>
+
+    <div class="debug-section">
+        <h3>4. API 调用测试</h3>
+        <div id="api-result" class="result">等待测试...</div>
+        <button class="btn" onclick="testRealAPI()">测试真实 API</button>
+    </div>
+
+    <script>
+        // 测试 JavaScript 基本功能
+        function testJavaScript() {
+            const statusEl = document.getElementById('js-status');
+            try {
+                statusEl.textContent = '✅ JavaScript 加载正常\n';
+                statusEl.textContent += `✅ 当前时间: ${new Date().toISOString()}\n`;
+                statusEl.textContent += `✅ fetch API 支持: ${typeof fetch !== 'undefined'}\n`;
+                statusEl.textContent += `✅ Promise 支持: ${typeof Promise !== 'undefined'}\n`;
+                statusEl.textContent += `✅ async/await 支持: ${typeof async !== 'undefined'}\n`;
+                statusEl.className = 'result success';
+            } catch (error) {
+                statusEl.textContent = `❌ JavaScript 错误: ${error.message}`;
+                statusEl.className = 'result error';
+            }
+        }
+
+        // 测试 DOM 元素
+        function testDOM() {
+            const statusEl = document.getElementById('dom-status');
+            const elements = [
+                'db-checking',
+                'db-success', 
+                'db-error',
+                'db-name',
+                'db-error-msg',
+                'btn-next-1'
+            ];
+
+            let result = '';
+            let allFound = true;
+
+            elements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    result += `✅ ${id}: 找到\n`;
+                } else {
+                    result += `❌ ${id}: 未找到\n`;
+                    allFound = false;
+                }
+            });
+
+            statusEl.textContent = result;
+            statusEl.className = allFound ? 'result success' : 'result error';
+        }
+
+        // 模拟数据库检测过程
+        async function testDatabaseCheck() {
+            const checkingEl = document.getElementById('db-checking');
+            const successEl = document.getElementById('db-success');
+            const errorEl = document.getElementById('db-error');
+            const nextBtn = document.getElementById('btn-next-1');
+
+            console.log('开始模拟数据库检测...');
+
+            // 显示检测状态
+            checkingEl.classList.remove('hidden');
+            successEl.classList.add('hidden');
+            errorEl.classList.add('hidden');
+            nextBtn.disabled = true;
+
+            // 模拟检测过程
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            try {
+                // 模拟成功
+                document.getElementById('db-name').textContent = 'D1 Database';
+                
+                checkingEl.classList.add('hidden');
+                successEl.classList.remove('hidden');
+                nextBtn.disabled = false;
+                
+                console.log('模拟检测成功');
+            } catch (error) {
+                console.error('模拟检测失败:', error);
+                
+                checkingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+                document.getElementById('db-error-msg').textContent = error.message;
+            }
+        }
+
+        // 测试真实 API
+        async function testRealAPI() {
+            const resultEl = document.getElementById('api-result');
+            resultEl.textContent = '🔍 正在测试真实 API...';
+            resultEl.className = 'result loading';
+
+            try {
+                const response = await fetch('/api/setup/check-database', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                resultEl.textContent = `✅ API 调用成功:\n${JSON.stringify(result, null, 2)}`;
+                resultEl.className = 'result success';
+
+            } catch (error) {
+                resultEl.textContent = `❌ API 调用失败:\n${error.message}`;
+                resultEl.className = 'result error';
+            }
+        }
+
+        // 页面加载完成后自动测试
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('页面加载完成');
+            testJavaScript();
+            testDOM();
+        });
+    </script>
+</body>
+</html>

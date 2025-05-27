@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 书签导航</title>
+    <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>📚 书签导航</h1>
+                <p>请登录您的账号</p>
+            </div>
+
+            <form class="login-form" id="login-form">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" required 
+                           placeholder="请输入用户名" autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required 
+                           placeholder="请输入密码" autocomplete="current-password">
+                </div>
+
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="remember" name="remember">
+                        <span class="checkmark"></span>
+                        记住我
+                    </label>
+                </div>
+
+                <button type="submit" class="login-btn" id="login-btn">
+                    <span class="btn-text">登录</span>
+                    <span class="btn-loading hidden">
+                        <div class="spinner"></div>
+                        登录中...
+                    </span>
+                </button>
+
+                <div class="error-message hidden" id="error-message">
+                    <div class="error-icon">⚠️</div>
+                    <span id="error-text">登录失败，请检查用户名和密码</span>
+                </div>
+            </form>
+
+            <div class="login-footer">
+                <p>忘记密码？请联系管理员或删除数据库中的用户表重新安装</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/login.js"></script>
+</body>
+</html>

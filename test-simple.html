@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单 API 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            background: #005a87;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { border-color: #28a745; background-color: #d4edda; }
+        .error { border-color: #dc3545; background-color: #f8d7da; }
+        .loading { color: #007cba; }
+    </style>
+</head>
+<body>
+    <h1>🔧 快速 API 诊断</h1>
+    
+    <div class="test-box">
+        <h3>当前环境信息</h3>
+        <div id="env-info" class="result"></div>
+        <button class="btn" onclick="showEnvInfo()">显示环境信息</button>
+    </div>
+
+    <div class="test-box">
+        <h3>测试 API 连接</h3>
+        <div id="api-result" class="result">点击按钮开始测试...</div>
+        <button class="btn" onclick="testAPI()">测试数据库 API</button>
+        <button class="btn" onclick="testRawAPI()">测试原始响应</button>
+    </div>
+
+    <script>
+        function showEnvInfo() {
+            const info = {
+                '当前URL': window.location.href,
+                '协议': window.location.protocol,
+                '主机': window.location.host,
+                '端口': window.location.port || '默认端口',
+                '路径': window.location.pathname,
+                '时间': new Date().toISOString(),
+                '用户代理': navigator.userAgent.substring(0, 100) + '...'
+            };
+            
+            document.getElementById('env-info').textContent = JSON.stringify(info, null, 2);
+        }
+
+        async function testAPI() {
+            const resultEl = document.getElementById('api-result');
+            resultEl.textContent = '🔍 正在测试 API...';
+            resultEl.className = 'result loading';
+
+            try {
+                console.log('开始测试 API...');
+                
+                const response = await fetch('/api/setup/check-database', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('收到响应:', response);
+                console.log('响应状态:', response.status);
+                console.log('响应头:', Object.fromEntries(response.headers));
+
+                const contentType = response.headers.get('content-type');
+                console.log('Content-Type:', contentType);
+
+                // 先获取原始文本
+                const responseText = await response.text();
+                console.log('响应文本:', responseText);
+
+                let result = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    contentType: contentType,
+                    headers: Object.fromEntries(response.headers),
+                    responseText: responseText
+                };
+
+                // 尝试解析 JSON
+                if (contentType && contentType.includes('application/json')) {
+                    try {
+                        result.jsonData = JSON.parse(responseText);
+                    } catch (jsonError) {
+                        result.jsonError = jsonError.message;
+                    }
+                }
+
+                resultEl.textContent = JSON.stringify(result, null, 2);
+                
+                if (response.ok && contentType && contentType.includes('application/json')) {
+                    resultEl.className = 'result success';
+                } else {
+                    resultEl.className = 'result error';
+                }
+
+            } catch (error) {
+                console.error('API 测试失败:', error);
+                resultEl.textContent = `❌ 测试失败:\n${error.message}\n\n堆栈:\n${error.stack}`;
+                resultEl.className = 'result error';
+            }
+        }
+
+        async function testRawAPI() {
+            const resultEl = document.getElementById('api-result');
+            resultEl.textContent = '🔍 正在测试原始 API 响应...';
+            resultEl.className = 'result loading';
+
+            try {
+                // 使用 XMLHttpRequest 获取更详细的信息
+                const xhr = new XMLHttpRequest();
+                
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        const result = {
+                            readyState: xhr.readyState,
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            responseURL: xhr.responseURL,
+                            responseText: xhr.responseText,
+                            responseHeaders: xhr.getAllResponseHeaders()
+                        };
+                        
+                        resultEl.textContent = JSON.stringify(result, null, 2);
+                        
+                        if (xhr.status === 200) {
+                            resultEl.className = 'result success';
+                        } else {
+                            resultEl.className = 'result error';
+                        }
+                    }
+                };
+
+                xhr.onerror = function() {
+                    resultEl.textContent = `❌ XMLHttpRequest 错误:\n状态: ${xhr.status}\n响应: ${xhr.responseText}`;
+                    resultEl.className = 'result error';
+                };
+
+                xhr.open('GET', '/api/setup/check-database', true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.send();
+
+            } catch (error) {
+                console.error('原始 API 测试失败:', error);
+                resultEl.textContent = `❌ 原始测试失败:\n${error.message}`;
+                resultEl.className = 'result error';
+            }
+        }
+
+        // 页面加载时显示环境信息
+        window.onload = function() {
+            showEnvInfo();
+        };
+    </script>
+</body>
+</html>

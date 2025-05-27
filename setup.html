@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统安装 - 书签导航</title>
+    <link rel="stylesheet" href="css/setup.css">
+</head>
+<body>
+    <div class="setup-container">
+        <div class="setup-card">
+            <h1>📚 书签导航系统安装</h1>
+            
+            <!-- 步骤指示器 -->
+            <div class="steps">
+                <div class="step active" id="step1">
+                    <span class="step-number">1</span>
+                    <span class="step-text">检测数据库</span>
+                </div>
+                <div class="step" id="step2">
+                    <span class="step-number">2</span>
+                    <span class="step-text">创建表格</span>
+                </div>
+                <div class="step" id="step3">
+                    <span class="step-number">3</span>
+                    <span class="step-text">设置账号</span>
+                </div>
+                <div class="step" id="step4">
+                    <span class="step-number">4</span>
+                    <span class="step-text">完成安装</span>
+                </div>
+            </div>
+
+            <!-- 安装内容区域 -->
+            <div class="setup-content">
+                
+                <!-- 步骤1: 检测数据库绑定 -->
+                <div class="setup-step" id="content-step1">
+                    <h2>🔍 检测 D1 数据库绑定</h2>
+                    <div class="status-box">
+                        <div class="loading" id="db-checking">
+                            <div class="spinner"></div>
+                            <span>正在检测数据库绑定...</span>
+                        </div>
+                        <div class="success hidden" id="db-success">
+                            <div class="icon">✅</div>
+                            <div class="info">
+                                <h3>数据库绑定成功</h3>
+                                <p>数据库名称: <strong id="db-name">-</strong></p>
+                                <p>绑定状态: <span class="status-ok">已连接</span></p>
+                            </div>
+                        </div>
+                        <div class="error hidden" id="db-error">
+                            <div class="icon">❌</div>
+                            <div class="info">
+                                <h3>数据库绑定失败</h3>
+                                <p id="db-error-msg">请确保已在 Cloudflare Pages 中绑定 D1 数据库</p>
+                                <button class="btn-retry" onclick="checkDatabase()">重新检测</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step-actions">
+                        <button class="btn-primary" id="btn-next-1" onclick="nextStep(2)" disabled>下一步</button>
+                    </div>
+                </div>
+
+                <!-- 步骤2: 创建数据库表格 -->
+                <div class="setup-step hidden" id="content-step2">
+                    <h2>🗄️ 创建数据库表格</h2>
+                    <div class="table-creation">
+                        <div class="table-item">
+                            <span class="table-name">users (用户表)</span>
+                            <span class="table-status" id="users-status">⏳ 等待创建</span>
+                        </div>
+                        <div class="table-item">
+                            <span class="table-name">categories (分类表)</span>
+                            <span class="table-status" id="categories-status">⏳ 等待创建</span>
+                        </div>
+                        <div class="table-item">
+                            <span class="table-name">bookmarks (书签表)</span>
+                            <span class="table-status" id="bookmarks-status">⏳ 等待创建</span>
+                        </div>
+                    </div>
+                    <div class="creation-log">
+                        <h4>创建日志:</h4>
+                        <div class="log-content" id="creation-log"></div>
+                    </div>
+                    <div class="step-actions">
+                        <button class="btn-secondary" onclick="prevStep(1)">上一步</button>
+                        <button class="btn-primary" id="btn-create-tables" onclick="createTables()">创建表格</button>
+                        <button class="btn-primary hidden" id="btn-next-2" onclick="nextStep(3)">下一步</button>
+                    </div>
+                </div>
+
+                <!-- 步骤3: 设置管理员账号 -->
+                <div class="setup-step hidden" id="content-step3">
+                    <h2>👤 设置管理员账号</h2>
+                    <form class="admin-form" id="admin-form">
+                        <div class="form-group">
+                            <label for="admin-username">管理员用户名:</label>
+                            <input type="text" id="admin-username" name="username" required 
+                                   placeholder="请输入管理员用户名" minlength="3" maxlength="20">
+                            <small>用户名长度 3-20 个字符</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="admin-password">管理员密码:</label>
+                            <input type="password" id="admin-password" name="password" required 
+                                   placeholder="请输入管理员密码" minlength="6">
+                            <small>密码至少 6 个字符</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="admin-password-confirm">确认密码:</label>
+                            <input type="password" id="admin-password-confirm" name="passwordConfirm" required 
+                                   placeholder="请再次输入密码">
+                        </div>
+                        <div class="form-group">
+                            <label for="admin-email">邮箱 (可选):</label>
+                            <input type="email" id="admin-email" name="email" 
+                                   placeholder="用于密码找回">
+                        </div>
+                    </form>
+                    <div class="step-actions">
+                        <button class="btn-secondary" onclick="prevStep(2)">上一步</button>
+                        <button class="btn-primary" id="btn-create-admin" onclick="createAdmin()">创建管理员</button>
+                    </div>
+                </div>
+
+                <!-- 步骤4: 安装完成 -->
+                <div class="setup-step hidden" id="content-step4">
+                    <h2>🎉 安装完成</h2>
+                    <div class="success-info">
+                        <div class="success-icon">✨</div>
+                        <h3>恭喜！系统安装成功</h3>
+                        <div class="install-summary">
+                            <p>✅ 数据库连接成功</p>
+                            <p>✅ 数据表创建完成</p>
+                            <p>✅ 管理员账号设置完成</p>
+                        </div>
+                        <div class="next-steps">
+                            <h4>接下来你可以:</h4>
+                            <ul>
+                                <li>登录管理后台添加书签分类</li>
+                                <li>导入现有书签数据</li>
+                                <li>自定义网站外观</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="step-actions">
+                        <button class="btn-primary btn-large" onclick="goToLogin()">前往登录</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="js/setup.js"></script>
+</body>
+</html>
