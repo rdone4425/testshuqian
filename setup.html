@@ -156,29 +156,66 @@
     </div>
 
     <script>
-        // 简化的安装管理器
+        // 安装管理器
         let currentStep = 1;
         let dbInfo = null;
+        let setupMode = 'install'; // 'install' 或 'repair'
+        let missingTables = [];
+        let allTables = [];
 
         // 手动检测数据库
         async function manualCheckDatabase() {
             console.log('手动检测数据库...');
 
             try {
-                const response = await fetch('/api/setup/check-database');
+                // 首先检查数据库连接
+                const dbResponse = await fetch('/api/setup/check-database');
+                const dbResult = await dbResponse.json();
+
+                if (!dbResult.success) {
+                    throw new Error(dbResult.message || '数据库连接失败');
+                }
+
+                // 然后使用新的表检测 API
+                const response = await fetch('/api/setup/check-tables');
                 const result = await response.json();
 
-                console.log('数据库检测结果:', result);
+                console.log('数据库表检测结果:', result);
 
                 if (result.success) {
                     // 成功
                     document.getElementById('db-checking').classList.add('hidden');
                     document.getElementById('db-success').classList.remove('hidden');
                     document.getElementById('db-error').classList.add('hidden');
-                    document.getElementById('db-name').textContent = result.data.name || 'D1 Database';
-                    document.getElementById('btn-next-1').disabled = false;
+                    document.getElementById('db-name').textContent = 'D1 Database';
+
+                    // 保存表状态信息
                     dbInfo = result.data;
-                    alert('数据库检测成功！');
+                    allTables = Object.keys(result.data.tables);
+
+                    // 根据模式显示不同信息
+                    if (setupMode === 'repair') {
+                        const statusInfo = document.querySelector('#db-success .info');
+                        statusInfo.innerHTML = `
+                            <h3>数据库连接成功</h3>
+                            <p>数据库名称: <strong>D1 Database</strong></p>
+                            <p>表完整性: <span style="color: #e67e22;">${result.data.completeness}%</span></p>
+                            <p>缺失表数: <strong style="color: #e74c3c;">${result.data.missingCount}</strong></p>
+                        `;
+                    } else {
+                        const statusInfo = document.querySelector('#db-success .info');
+                        statusInfo.innerHTML = `
+                            <h3>数据库绑定成功</h3>
+                            <p>数据库名称: <strong>D1 Database</strong></p>
+                            <p>绑定状态: <span class="status-ok">已连接</span></p>
+                            <p>表状态: <span style="color: ${result.data.allTablesExist ? '#27ae60' : '#e67e22'};">${result.data.allTablesExist ? '完整' : '需要创建'}</span></p>
+                        `;
+                    }
+
+                    document.getElementById('btn-next-1').disabled = false;
+
+                    const message = setupMode === 'repair' ? '数据库状态检测完成！' : '数据库检测成功！';
+                    alert(message);
                 } else {
                     throw new Error(result.message || '检测失败');
                 }
@@ -210,6 +247,11 @@
             showStep(step);
             updateStepIndicator(step);
             currentStep = step;
+
+            // 如果进入步骤2，更新表创建界面
+            if (step === 2) {
+                updateTableCreationUI();
+            }
         }
 
         function prevStep(step) {
@@ -242,57 +284,88 @@
             }
         }
 
+        // 更新表创建界面
+        function updateTableCreationUI() {
+            if (!dbInfo || !dbInfo.tables) return;
+
+            // 更新步骤2的标题
+            const step2Title = document.querySelector('#content-step2 h2');
+            if (setupMode === 'repair') {
+                step2Title.textContent = '🔧 修复缺失的数据库表';
+            } else {
+                step2Title.textContent = '🗄️ 创建数据库表格';
+            }
+
+            // 更新表状态显示
+            const tableItems = document.querySelectorAll('.table-item');
+            tableItems.forEach(item => {
+                const tableName = item.querySelector('.table-name').textContent.split(' ')[0];
+                const statusEl = item.querySelector('.table-status');
+
+                if (dbInfo.tables[tableName] && dbInfo.tables[tableName].exists) {
+                    statusEl.textContent = '✅ 已存在';
+                    statusEl.style.color = '#27ae60';
+                    item.style.opacity = '0.6';
+                } else {
+                    statusEl.textContent = '⏳ 等待创建';
+                    statusEl.style.color = '#e67e22';
+                    item.style.opacity = '1';
+                }
+            });
+
+            // 如果是修复模式，显示修复提示
+            if (setupMode === 'repair') {
+                const creationDiv = document.querySelector('.table-creation');
+                const existingNotice = creationDiv.querySelector('.repair-info');
+                if (!existingNotice) {
+                    creationDiv.insertAdjacentHTML('afterbegin', `
+                        <div class="repair-info" style="background: #e8f5e8; border: 1px solid #27ae60; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                            <h4 style="color: #27ae60; margin: 0 0 10px 0;">🔧 修复模式</h4>
+                            <p style="color: #27ae60; margin: 0;">只会创建缺失的表，已存在的表将保持不变。</p>
+                        </div>
+                    `);
+                }
+            }
+        }
+
         // 创建表格
         async function createTables() {
             const createBtn = document.getElementById('btn-create-tables');
             const nextBtn = document.getElementById('btn-next-2');
 
             createBtn.disabled = true;
-            createBtn.textContent = '创建中...';
+            createBtn.textContent = setupMode === 'repair' ? '修复中...' : '创建中...';
 
-            const tables = [
-                {
-                    name: 'users',
-                    sql: `CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        username TEXT UNIQUE NOT NULL,
-                        password TEXT NOT NULL,
-                        email TEXT,
-                        role TEXT DEFAULT 'admin',
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )`
-                },
-                {
-                    name: 'categories',
-                    sql: `CREATE TABLE IF NOT EXISTS categories (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT NOT NULL,
-                        description TEXT,
-                        icon TEXT,
-                        sort_order INTEGER DEFAULT 0,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )`
-                },
-                {
-                    name: 'bookmarks',
-                    sql: `CREATE TABLE IF NOT EXISTS bookmarks (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        title TEXT NOT NULL,
-                        url TEXT NOT NULL,
-                        description TEXT,
-                        icon TEXT,
-                        category_id INTEGER,
-                        sort_order INTEGER DEFAULT 0,
-                        is_featured BOOLEAN DEFAULT 0,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (category_id) REFERENCES categories (id)
-                    )`
-                }
-            ];
+            // 使用 API 返回的表定义
+            const tables = [];
+            if (dbInfo && dbInfo.tables) {
+                Object.entries(dbInfo.tables).forEach(([key, tableInfo]) => {
+                    if (!tableInfo.exists && tableInfo.sql) {
+                        tables.push({
+                            name: tableInfo.name,
+                            displayName: tableInfo.displayName,
+                            sql: tableInfo.sql
+                        });
+                    }
+                });
+            }
+
+            // 如果没有需要创建的表
+            if (tables.length === 0) {
+                createBtn.textContent = setupMode === 'repair' ? '修复表格' : '创建表格';
+                createBtn.disabled = false;
+                createBtn.classList.add('hidden');
+                nextBtn.classList.remove('hidden');
+                alert('所有表格都已存在，无需创建！');
+                return;
+            }
 
             let successCount = 0;
+            let totalTables = tables.length;
+
+            // 更新日志
+            const logEl = document.getElementById('creation-log');
+            logEl.innerHTML = `<p>开始${setupMode === 'repair' ? '修复' : '创建'}数据库表...</p>`;
 
             for (const table of tables) {
                 try {
@@ -313,6 +386,7 @@
 
                     if (result.success) {
                         document.getElementById(`${table.name}-status`).textContent = '✅ 创建成功';
+                        logEl.innerHTML += `<p style="color: #27ae60;">✅ ${table.displayName || table.name} 创建成功</p>`;
                         successCount++;
                     } else {
                         throw new Error(result.message || '创建失败');
@@ -322,19 +396,23 @@
 
                 } catch (error) {
                     document.getElementById(`${table.name}-status`).textContent = '❌ 创建失败';
+                    logEl.innerHTML += `<p style="color: #e74c3c;">❌ ${table.displayName || table.name} 创建失败: ${error.message}</p>`;
                     console.error(`表格 ${table.name} 创建失败:`, error);
                 }
             }
 
-            createBtn.textContent = '创建表格';
+            createBtn.textContent = setupMode === 'repair' ? '修复表格' : '创建表格';
             createBtn.disabled = false;
 
-            if (successCount === tables.length) {
+            const actionText = setupMode === 'repair' ? '修复' : '创建';
+            if (successCount === totalTables) {
                 createBtn.classList.add('hidden');
                 nextBtn.classList.remove('hidden');
-                alert('所有表格创建完成！');
+                logEl.innerHTML += `<p style="color: #27ae60; font-weight: bold;">🎉 所有表格${actionText}完成！</p>`;
+                alert(`所有表格${actionText}完成！`);
             } else {
-                alert(`创建完成，成功: ${successCount}/${tables.length}`);
+                logEl.innerHTML += `<p style="color: #e67e22; font-weight: bold;">⚠️ ${actionText}完成，成功: ${successCount}/${totalTables}</p>`;
+                alert(`${actionText}完成，成功: ${successCount}/${totalTables}`);
             }
         }
 
@@ -408,10 +486,45 @@
             manualCheckDatabase();
         }
 
-        // 页面加载完成后自动检测数据库
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('页面加载完成，3秒后自动检测数据库...');
+        // 初始化页面
+        function initializePage() {
+            // 检查 URL 参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode');
+            const missing = urlParams.get('missing');
+
+            if (mode === 'repair' && missing) {
+                setupMode = 'repair';
+                try {
+                    missingTables = JSON.parse(decodeURIComponent(missing));
+                    console.log('修复模式，缺失的表:', missingTables);
+
+                    // 更新页面标题和说明
+                    document.querySelector('h1').textContent = '🔧 数据库修复';
+                    document.querySelector('.setup-step h2').innerHTML = '🔍 检测数据库状态';
+
+                    // 显示修复提示
+                    const statusBox = document.querySelector('.status-box');
+                    statusBox.insertAdjacentHTML('afterbegin', `
+                        <div class="repair-notice" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                            <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ 检测到数据库表缺失</h4>
+                            <p style="color: #856404; margin: 0;">系统将自动修复缺失的数据库表: <strong>${missingTables.join(', ')}</strong></p>
+                        </div>
+                    `);
+                } catch (error) {
+                    console.error('解析缺失表参数失败:', error);
+                    setupMode = 'install';
+                }
+            }
+
+            // 开始检测
             autoCheckDatabase();
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('页面加载完成，初始化安装程序...');
+            initializePage();
         });
     </script>
 </body>

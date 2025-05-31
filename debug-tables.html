@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库表调试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f7fa;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: #005a87;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: 500;
+            display: inline-block;
+            margin: 2px;
+            font-size: 12px;
+        }
+
+        .status-ok { background: #d4edda; color: #155724; }
+        .status-missing { background: #f8d7da; color: #721c24; }
+        .status-warning { background: #fff3cd; color: #856404; }
+
+        .table-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .table-card {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+
+        .table-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .table-info {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 数据库表调试工具</h1>
+        <p>用于测试和调试数据库表检测功能</p>
+
+        <div class="card">
+            <h3>🔍 检测功能</h3>
+            <button class="btn" onclick="testDatabaseConnection()">测试数据库连接</button>
+            <button class="btn" onclick="testTableCheck()">检测表状态</button>
+            <button class="btn" onclick="testAdminCheck()">检测管理员</button>
+            <button class="btn" onclick="testSystemFlow()">测试完整流程</button>
+            <div id="test-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="card">
+            <h3>📊 表状态概览</h3>
+            <div id="table-overview">
+                <p>点击"检测表状态"查看详细信息</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🛠️ 管理操作</h3>
+            <button class="btn btn-success" onclick="createAllTables()">创建所有表</button>
+            <button class="btn btn-danger" onclick="dropTable('categories')">删除 categories 表 (测试用)</button>
+            <button class="btn btn-danger" onclick="dropTable('bookmarks')">删除 bookmarks 表 (测试用)</button>
+            <button class="btn" onclick="goToSetup()">前往安装页面</button>
+            <div id="manage-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="card">
+            <h3>🔄 自动测试</h3>
+            <button class="btn" onclick="runAutoTest()">运行自动化测试</button>
+            <div id="auto-test-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // 显示结果
+        function showResult(containerId, data, title = '') {
+            const container = document.getElementById(containerId);
+            container.style.display = 'block';
+            const timestamp = new Date().toLocaleTimeString();
+            const content = title ? `=== ${title} (${timestamp}) ===\n${JSON.stringify(data, null, 2)}` : JSON.stringify(data, null, 2);
+            container.textContent = content;
+        }
+
+        // 测试数据库连接
+        async function testDatabaseConnection() {
+            try {
+                const response = await fetch('/api/setup/check-database');
+                const result = await response.json();
+                showResult('test-result', result, '数据库连接测试');
+            } catch (error) {
+                showResult('test-result', { error: error.message }, '数据库连接测试');
+            }
+        }
+
+        // 测试表检测
+        async function testTableCheck() {
+            try {
+                const response = await fetch('/api/setup/check-tables');
+                const result = await response.json();
+                showResult('test-result', result, '表检测测试');
+                updateTableOverview(result);
+            } catch (error) {
+                showResult('test-result', { error: error.message }, '表检测测试');
+            }
+        }
+
+        // 测试管理员检测
+        async function testAdminCheck() {
+            try {
+                const response = await fetch('/api/auth/check-admin');
+                const result = await response.json();
+                showResult('test-result', result, '管理员检测测试');
+            } catch (error) {
+                showResult('test-result', { error: error.message }, '管理员检测测试');
+            }
+        }
+
+        // 测试完整流程
+        async function testSystemFlow() {
+            const results = {};
+            
+            try {
+                // 1. 检测数据库
+                const dbResponse = await fetch('/api/setup/check-database');
+                results.database = await dbResponse.json();
+                
+                // 2. 检测表
+                const tableResponse = await fetch('/api/setup/check-tables');
+                results.tables = await tableResponse.json();
+                
+                // 3. 检测管理员
+                const adminResponse = await fetch('/api/auth/check-admin');
+                results.admin = await adminResponse.json();
+                
+                // 4. 分析结果
+                results.analysis = {
+                    databaseOK: results.database.success,
+                    tablesComplete: results.tables.success && results.tables.data.allTablesExist,
+                    adminExists: results.admin.success && results.admin.data.hasAdmin,
+                    nextAction: getNextAction(results)
+                };
+                
+                showResult('test-result', results, '完整流程测试');
+                
+            } catch (error) {
+                showResult('test-result', { error: error.message }, '完整流程测试');
+            }
+        }
+
+        // 分析下一步操作
+        function getNextAction(results) {
+            if (!results.database.success) {
+                return 'check_database_binding';
+            }
+            if (!results.tables.success || !results.tables.data.allTablesExist) {
+                return 'create_tables';
+            }
+            if (!results.admin.success || !results.admin.data.hasAdmin) {
+                return 'create_admin';
+            }
+            return 'system_ready';
+        }
+
+        // 更新表概览
+        function updateTableOverview(result) {
+            const container = document.getElementById('table-overview');
+            
+            if (!result.success || !result.data.tables) {
+                container.innerHTML = '<p style="color: #dc3545;">无法获取表信息</p>';
+                return;
+            }
+            
+            const tables = result.data.tables;
+            let html = `
+                <div style="margin-bottom: 15px;">
+                    <strong>完整性: ${result.data.completeness}%</strong> 
+                    (${result.data.existingCount}/${result.data.totalTables} 个表存在)
+                </div>
+                <div class="table-grid">
+            `;
+            
+            Object.entries(tables).forEach(([key, table]) => {
+                const statusClass = table.exists ? 'status-ok' : 'status-missing';
+                const statusText = table.exists ? '✅ 存在' : '❌ 缺失';
+                
+                html += `
+                    <div class="table-card">
+                        <div class="table-name">${table.displayName || table.name}</div>
+                        <div class="table-info">${table.description || '无描述'}</div>
+                        <span class="status ${statusClass}">${statusText}</span>
+                        ${table.warning ? `<div style="color: #856404; font-size: 11px; margin-top: 5px;">⚠️ ${table.warning}</div>` : ''}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // 创建所有表
+        async function createAllTables() {
+            try {
+                const tables = [
+                    {
+                        name: 'users',
+                        sql: `CREATE TABLE IF NOT EXISTS users (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            username TEXT UNIQUE NOT NULL,
+                            password TEXT NOT NULL,
+                            email TEXT,
+                            role TEXT DEFAULT 'admin',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )`
+                    },
+                    {
+                        name: 'categories',
+                        sql: `CREATE TABLE IF NOT EXISTS categories (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name TEXT NOT NULL,
+                            description TEXT,
+                            icon TEXT,
+                            sort_order INTEGER DEFAULT 0,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )`
+                    },
+                    {
+                        name: 'bookmarks',
+                        sql: `CREATE TABLE IF NOT EXISTS bookmarks (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            title TEXT NOT NULL,
+                            url TEXT NOT NULL,
+                            description TEXT,
+                            icon TEXT,
+                            category_id INTEGER,
+                            sort_order INTEGER DEFAULT 0,
+                            is_featured BOOLEAN DEFAULT 0,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (category_id) REFERENCES categories (id)
+                        )`
+                    }
+                ];
+
+                const results = [];
+                for (const table of tables) {
+                    const response = await fetch('/api/setup/create-table', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(table)
+                    });
+                    const result = await response.json();
+                    results.push({ table: table.name, result });
+                }
+
+                showResult('manage-result', results, '创建表结果');
+                
+                // 重新检测表状态
+                setTimeout(() => testTableCheck(), 1000);
+                
+            } catch (error) {
+                showResult('manage-result', { error: error.message }, '创建表错误');
+            }
+        }
+
+        // 删除表 (仅用于测试)
+        async function dropTable(tableName) {
+            if (!confirm(`确定要删除表 ${tableName} 吗？这仅用于测试修复功能。`)) {
+                return;
+            }
+
+            try {
+                // 注意：这里需要一个删除表的 API，或者手动操作
+                alert(`请手动执行以下命令来删除表：\n\nwrangler d1 execute your-db-name --command="DROP TABLE IF EXISTS ${tableName};"`);
+                showResult('manage-result', { 
+                    message: `请手动删除表 ${tableName}`,
+                    command: `wrangler d1 execute your-db-name --command="DROP TABLE IF EXISTS ${tableName};"`
+                }, '删除表操作');
+            } catch (error) {
+                showResult('manage-result', { error: error.message }, '删除表错误');
+            }
+        }
+
+        // 前往安装页面
+        function goToSetup() {
+            window.location.href = '/setup.html';
+        }
+
+        // 运行自动化测试
+        async function runAutoTest() {
+            const testResults = [];
+            
+            try {
+                // 测试1: 数据库连接
+                testResults.push({ test: '数据库连接', status: 'running' });
+                const dbTest = await fetch('/api/setup/check-database');
+                const dbResult = await dbTest.json();
+                testResults[0].status = dbResult.success ? 'pass' : 'fail';
+                testResults[0].result = dbResult;
+
+                // 测试2: 表检测
+                testResults.push({ test: '表检测', status: 'running' });
+                const tableTest = await fetch('/api/setup/check-tables');
+                const tableResult = await tableTest.json();
+                testResults[1].status = tableResult.success ? 'pass' : 'fail';
+                testResults[1].result = tableResult;
+
+                // 测试3: 管理员检测
+                testResults.push({ test: '管理员检测', status: 'running' });
+                const adminTest = await fetch('/api/auth/check-admin');
+                const adminResult = await adminTest.json();
+                testResults[2].status = adminResult.success && adminResult.data.hasAdmin ? 'pass' : 'partial';
+                testResults[2].result = adminResult;
+
+                showResult('auto-test-result', testResults, '自动化测试结果');
+                
+            } catch (error) {
+                showResult('auto-test-result', { error: error.message }, '自动化测试错误');
+            }
+        }
+
+        // 页面加载时自动检测
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('数据库表调试工具已加载');
+            setTimeout(() => testTableCheck(), 500);
+        });
+    </script>
+</body>
+</html>

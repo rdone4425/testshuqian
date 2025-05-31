@@ -157,6 +157,11 @@
             color: #856404;
         }
 
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
         .welcome-message {
             background: linear-gradient(135deg, #007cba, #0056b3);
             color: white;
@@ -273,18 +278,19 @@
         </div>
     </div>
 
+    <script src="/js/utils/database.js"></script>
     <script>
         // 检查登录状态
         function checkAuth() {
             const token = localStorage.getItem('auth_token');
             const userInfo = localStorage.getItem('user_info');
-            
+
             if (!token || !userInfo) {
                 alert('请先登录');
                 window.location.href = '/login.html';
                 return false;
             }
-            
+
             try {
                 const user = JSON.parse(userInfo);
                 document.getElementById('user-name').textContent = user.username;
@@ -308,6 +314,28 @@
         // 刷新统计数据
         async function refreshStats() {
             try {
+                // 检查数据库状态
+                const dbStatus = await window.dbMonitor.getStatusSummary();
+
+                // 更新数据库状态显示
+                const dbStatusEl = document.getElementById('db-status');
+                if (dbStatus.status === 'healthy') {
+                    dbStatusEl.textContent = '正常';
+                    dbStatusEl.className = 'status status-success';
+                } else if (dbStatus.status === 'incomplete') {
+                    dbStatusEl.textContent = `不完整 (${dbStatus.completeness}%)`;
+                    dbStatusEl.className = 'status status-warning';
+                    dbStatusEl.onclick = () => {
+                        if (confirm('检测到数据库表缺失，是否立即修复？')) {
+                            window.dbMonitor.autoRepair();
+                        }
+                    };
+                    dbStatusEl.style.cursor = 'pointer';
+                } else {
+                    dbStatusEl.textContent = '异常';
+                    dbStatusEl.className = 'status status-error';
+                }
+
                 // 这里可以调用 API 获取真实统计数据
                 // 暂时使用模拟数据
                 document.getElementById('bookmark-count').textContent = '0';
@@ -316,6 +344,10 @@
                 document.getElementById('last-update').textContent = new Date().toLocaleString();
             } catch (error) {
                 console.error('刷新统计失败:', error);
+                // 如果监控失败，显示错误状态
+                const dbStatusEl = document.getElementById('db-status');
+                dbStatusEl.textContent = '检查失败';
+                dbStatusEl.className = 'status status-error';
             }
         }
 
@@ -340,6 +372,53 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (checkAuth()) {
                 refreshStats();
+
+                // 启动数据库监控
+                window.dbMonitor.startMonitoring(60000, (result) => {
+                    if (result.status === 'incomplete') {
+                        console.warn('数据库监控检测到表缺失:', result.missingTables);
+
+                        // 更新界面显示
+                        refreshStats();
+
+                        // 可选：显示通知
+                        if (result.missingTables && result.missingTables.length > 0) {
+                            const notification = document.createElement('div');
+                            notification.style.cssText = `
+                                position: fixed;
+                                top: 20px;
+                                right: 20px;
+                                background: #fff3cd;
+                                border: 1px solid #ffeaa7;
+                                padding: 15px;
+                                border-radius: 8px;
+                                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                                z-index: 1000;
+                                max-width: 300px;
+                            `;
+                            notification.innerHTML = `
+                                <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ 数据库监控警告</h4>
+                                <p style="color: #856404; margin: 0 0 10px 0;">检测到缺失的数据库表: ${result.missingTables.join(', ')}</p>
+                                <button onclick="window.dbMonitor.autoRepair(); this.parentElement.remove();"
+                                        style="background: #856404; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+                                    立即修复
+                                </button>
+                                <button onclick="this.parentElement.remove();"
+                                        style="background: #6c757d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;">
+                                    忽略
+                                </button>
+                            `;
+                            document.body.appendChild(notification);
+
+                            // 10秒后自动消失
+                            setTimeout(() => {
+                                if (notification.parentElement) {
+                                    notification.remove();
+                                }
+                            }, 10000);
+                        }
+                    }
+                });
             }
         });
     </script>

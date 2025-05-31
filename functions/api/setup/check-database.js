@@ -45,11 +45,32 @@ export async function onRequest(context) {
         try {
             const result = await env.DB.prepare('SELECT 1 as test').first();
 
-            // 获取数据库信息（如果可能的话）
+            // 检查必需的表是否存在
+            const requiredTables = ['users', 'categories', 'bookmarks'];
+            const tableStatus = {};
+            const missingTables = [];
+
+            for (const tableName of requiredTables) {
+                try {
+                    // 尝试查询表，如果表不存在会抛出异常
+                    await env.DB.prepare(`SELECT 1 FROM ${tableName} LIMIT 1`).first();
+                    tableStatus[tableName] = true;
+                } catch (error) {
+                    // 表不存在或查询失败
+                    console.log(`表 ${tableName} 不存在:`, error.message);
+                    tableStatus[tableName] = false;
+                    missingTables.push(tableName);
+                }
+            }
+
+            // 获取数据库信息
             const dbInfo = {
                 name: env.DB.name || 'D1 Database',
                 connected: true,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                tables: tableStatus,
+                missingTables: missingTables,
+                allTablesExist: missingTables.length === 0
             };
 
             return new Response(JSON.stringify({

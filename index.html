@@ -150,7 +150,15 @@
                     return;
                 }
 
-                // 数据库已绑定，检查是否已安装（检查是否有管理员账号）
+                // 数据库已绑定，检查表完整性
+                if (!dbResult.data.allTablesExist) {
+                    // 有表缺失，跳转到安装页面修复
+                    console.log('检测到缺失的表:', dbResult.data.missingTables);
+                    window.location.href = '/setup.html?mode=repair&missing=' + encodeURIComponent(JSON.stringify(dbResult.data.missingTables));
+                    return;
+                }
+
+                // 数据库和表都正常，检查是否已安装（检查是否有管理员账号）
                 const adminResponse = await fetch('/api/auth/check-admin', {
                     method: 'GET',
                     headers: {
@@ -167,7 +175,19 @@
 
                 const adminResult = await adminResponse.json();
 
-                if (!adminResult.success || !adminResult.data.hasAdmin) {
+                if (!adminResult.success) {
+                    // 如果是表不存在的错误，跳转到安装页面
+                    if (adminResult.data && adminResult.data.tableExists === false) {
+                        console.log('检测到用户表不存在，跳转到安装页面');
+                        window.location.href = '/setup.html';
+                        return;
+                    }
+                    // 其他错误，跳转到安装页面
+                    window.location.href = '/setup.html';
+                    return;
+                }
+
+                if (!adminResult.data.hasAdmin) {
                     // 没有管理员账号，需要完成安装
                     window.location.href = '/setup.html';
                     return;

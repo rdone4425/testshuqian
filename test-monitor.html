@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库监控测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background: #005a87;
+        }
+
+        .btn-warning {
+            background: #e67e22;
+        }
+
+        .btn-warning:hover {
+            background: #d35400;
+        }
+
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: 500;
+            display: inline-block;
+            margin: 5px;
+        }
+
+        .status-healthy {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-incomplete {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 数据库监控测试工具</h1>
+        
+        <div class="card">
+            <h3>基础检测</h3>
+            <button class="btn" onclick="testConnection()">测试数据库连接</button>
+            <button class="btn" onclick="testTables()">检测表完整性</button>
+            <button class="btn" onclick="testSystemIntegrity()">检测系统完整性</button>
+            <div id="basic-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="card">
+            <h3>监控功能</h3>
+            <button class="btn" onclick="startMonitoring()">启动监控</button>
+            <button class="btn btn-warning" onclick="stopMonitoring()">停止监控</button>
+            <button class="btn" onclick="getStatus()">获取状态摘要</button>
+            <div id="monitor-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="card">
+            <h3>修复功能</h3>
+            <button class="btn btn-warning" onclick="simulateTableDrop()">模拟删除表 (测试用)</button>
+            <button class="btn" onclick="autoRepair()">自动修复</button>
+            <div id="repair-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="card">
+            <h3>实时状态</h3>
+            <div id="status-display">
+                <span class="status status-healthy">等待检测...</span>
+            </div>
+            <div id="status-details" style="margin-top: 10px; font-size: 14px; color: #666;"></div>
+        </div>
+    </div>
+
+    <script src="/js/utils/database.js"></script>
+    <script>
+        let monitoringActive = false;
+
+        // 显示结果
+        function showResult(containerId, data) {
+            const container = document.getElementById(containerId);
+            container.style.display = 'block';
+            container.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // 测试数据库连接
+        async function testConnection() {
+            try {
+                const result = await window.dbMonitor.checkConnection();
+                showResult('basic-result', result);
+            } catch (error) {
+                showResult('basic-result', { error: error.message });
+            }
+        }
+
+        // 测试表完整性
+        async function testTables() {
+            try {
+                const result = await window.dbMonitor.checkTables();
+                showResult('basic-result', result);
+            } catch (error) {
+                showResult('basic-result', { error: error.message });
+            }
+        }
+
+        // 测试系统完整性
+        async function testSystemIntegrity() {
+            try {
+                const result = await window.dbMonitor.checkSystemIntegrity();
+                showResult('basic-result', result);
+                updateStatusDisplay(result);
+            } catch (error) {
+                showResult('basic-result', { error: error.message });
+            }
+        }
+
+        // 启动监控
+        function startMonitoring() {
+            if (monitoringActive) {
+                alert('监控已在运行');
+                return;
+            }
+
+            window.dbMonitor.startMonitoring(10000, (result) => {
+                console.log('监控回调:', result);
+                updateStatusDisplay(result);
+                
+                const monitorResult = document.getElementById('monitor-result');
+                monitorResult.style.display = 'block';
+                monitorResult.textContent = `监控更新 ${new Date().toLocaleTimeString()}:\n${JSON.stringify(result, null, 2)}`;
+            });
+
+            monitoringActive = true;
+            showResult('monitor-result', { message: '监控已启动，检查间隔: 10秒' });
+        }
+
+        // 停止监控
+        function stopMonitoring() {
+            window.dbMonitor.stopMonitoring();
+            monitoringActive = false;
+            showResult('monitor-result', { message: '监控已停止' });
+        }
+
+        // 获取状态摘要
+        async function getStatus() {
+            try {
+                const result = await window.dbMonitor.getStatusSummary();
+                showResult('monitor-result', result);
+                updateStatusDisplay(result);
+            } catch (error) {
+                showResult('monitor-result', { error: error.message });
+            }
+        }
+
+        // 自动修复
+        async function autoRepair() {
+            try {
+                const result = await window.dbMonitor.autoRepair();
+                showResult('repair-result', { 
+                    message: result ? '修复已启动' : '无需修复或用户取消',
+                    repairStarted: result 
+                });
+            } catch (error) {
+                showResult('repair-result', { error: error.message });
+            }
+        }
+
+        // 模拟删除表（仅用于测试）
+        async function simulateTableDrop() {
+            if (!confirm('这将删除 categories 表用于测试修复功能。确定继续吗？')) {
+                return;
+            }
+
+            try {
+                // 注意：这只是一个模拟，实际不会删除表
+                alert('模拟功能：在真实环境中，这会删除一个表来测试修复功能。\n\n请手动删除一个表来测试修复功能。');
+                showResult('repair-result', { 
+                    message: '模拟删除表完成，请刷新页面检测状态' 
+                });
+            } catch (error) {
+                showResult('repair-result', { error: error.message });
+            }
+        }
+
+        // 更新状态显示
+        function updateStatusDisplay(status) {
+            const statusDisplay = document.getElementById('status-display');
+            const statusDetails = document.getElementById('status-details');
+
+            let statusClass, statusText;
+            
+            switch (status.status) {
+                case 'healthy':
+                    statusClass = 'status-healthy';
+                    statusText = '✅ 数据库健康';
+                    break;
+                case 'incomplete':
+                    statusClass = 'status-incomplete';
+                    statusText = `⚠️ 数据库不完整 (${status.completeness}%)`;
+                    break;
+                case 'error':
+                    statusClass = 'status-error';
+                    statusText = '❌ 数据库错误';
+                    break;
+                default:
+                    statusClass = 'status-error';
+                    statusText = '❓ 状态未知';
+            }
+
+            statusDisplay.innerHTML = `<span class="status ${statusClass}">${statusText}</span>`;
+            statusDetails.textContent = `消息: ${status.message} | 更新时间: ${new Date().toLocaleString()}`;
+
+            if (status.missingTables && status.missingTables.length > 0) {
+                statusDetails.textContent += ` | 缺失表: ${status.missingTables.join(', ')}`;
+            }
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('数据库监控测试页面已加载');
+            
+            // 自动检测一次状态
+            setTimeout(() => {
+                testSystemIntegrity();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
