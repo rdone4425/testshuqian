@@ -43,7 +43,21 @@ export async function onRequest(context) {
 
         // 尝试执行一个简单的查询来验证连接
         try {
-            const result = await env.DB.prepare('SELECT 1 as test').first();
+            // 使用更安全的连接测试方式
+            let connectionTest = false;
+            try {
+                await env.DB.prepare('SELECT 1 as test').first();
+                connectionTest = true;
+            } catch (testError) {
+                // 如果简单查询失败，尝试查询 sqlite_master 表
+                try {
+                    await env.DB.prepare('SELECT name FROM sqlite_master LIMIT 1').first();
+                    connectionTest = true;
+                } catch (masterError) {
+                    console.error('数据库连接测试失败:', masterError);
+                    throw new Error('数据库连接失败');
+                }
+            }
 
             // 检查必需的表是否存在
             const requiredTables = ['users', 'categories', 'bookmarks'];
@@ -52,12 +66,30 @@ export async function onRequest(context) {
 
             for (const tableName of requiredTables) {
                 try {
-                    // 尝试查询表，如果表不存在会抛出异常
-                    await env.DB.prepare(`SELECT 1 FROM ${tableName} LIMIT 1`).first();
-                    tableStatus[tableName] = true;
+                    // 使用 sqlite_master 查询表是否存在（更可靠）
+                    const tableExists = await env.DB.prepare(
+                        'SELECT name FROM sqlite_master WHERE type="table" AND name=?'
+                    ).bind(tableName).first();
+
+                    if (tableExists) {
+                        // 表存在，再尝试查询确认表结构正常
+                        try {
+                            await env.DB.prepare(`SELECT 1 FROM ${tableName} LIMIT 1`).first();
+                            tableStatus[tableName] = true;
+                        } catch (queryError) {
+                            // 表存在但查询失败，可能是表结构问题
+                            console.warn(`表 ${tableName} 存在但查询异常:`, queryError.message);
+                            tableStatus[tableName] = true; // 仍然认为表存在
+                        }
+                    } else {
+                        // 表不存在
+                        console.log(`表 ${tableName} 不存在`);
+                        tableStatus[tableName] = false;
+                        missingTables.push(tableName);
+                    }
                 } catch (error) {
-                    // 表不存在或查询失败
-                    console.log(`表 ${tableName} 不存在:`, error.message);
+                    // 查询失败，认为表不存在
+                    console.log(`检查表 ${tableName} 时出错:`, error.message);
                     tableStatus[tableName] = false;
                     missingTables.push(tableName);
                 }
@@ -66,16 +98,17 @@ export async function onRequest(context) {
             // 获取数据库信息
             const dbInfo = {
                 name: env.DB.name || 'D1 Database',
-                connected: true,
+                connected: connectionTest,
                 timestamp: new Date().toISOString(),
                 tables: tableStatus,
                 missingTables: missingTables,
-                allTablesExist: missingTables.length === 0
+                allTablesExist: missingTables.length === 0,
+                isEmpty: missingTables.length === requiredTables.length
             };
 
             return new Response(JSON.stringify({
                 success: true,
-                message: '数据库连接成功',
+                message: connectionTest ? '数据库连接成功' : '数据库连接异常',
                 data: dbInfo
             }), {
                 status: 200,

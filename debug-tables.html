@@ -135,6 +135,7 @@
             <button class="btn btn-danger" onclick="dropTable('categories')">删除 categories 表 (测试用)</button>
             <button class="btn btn-danger" onclick="dropTable('bookmarks')">删除 bookmarks 表 (测试用)</button>
             <button class="btn" onclick="goToSetup()">前往安装页面</button>
+            <button class="btn" onclick="testAutoRepair()">测试自动修复跳转</button>
             <div id="manage-result" class="result" style="display: none;"></div>
         </div>
 
@@ -192,20 +193,20 @@
         // 测试完整流程
         async function testSystemFlow() {
             const results = {};
-            
+
             try {
                 // 1. 检测数据库
                 const dbResponse = await fetch('/api/setup/check-database');
                 results.database = await dbResponse.json();
-                
+
                 // 2. 检测表
                 const tableResponse = await fetch('/api/setup/check-tables');
                 results.tables = await tableResponse.json();
-                
+
                 // 3. 检测管理员
                 const adminResponse = await fetch('/api/auth/check-admin');
                 results.admin = await adminResponse.json();
-                
+
                 // 4. 分析结果
                 results.analysis = {
                     databaseOK: results.database.success,
@@ -213,9 +214,9 @@
                     adminExists: results.admin.success && results.admin.data.hasAdmin,
                     nextAction: getNextAction(results)
                 };
-                
+
                 showResult('test-result', results, '完整流程测试');
-                
+
             } catch (error) {
                 showResult('test-result', { error: error.message }, '完整流程测试');
             }
@@ -238,25 +239,25 @@
         // 更新表概览
         function updateTableOverview(result) {
             const container = document.getElementById('table-overview');
-            
+
             if (!result.success || !result.data.tables) {
                 container.innerHTML = '<p style="color: #dc3545;">无法获取表信息</p>';
                 return;
             }
-            
+
             const tables = result.data.tables;
             let html = `
                 <div style="margin-bottom: 15px;">
-                    <strong>完整性: ${result.data.completeness}%</strong> 
+                    <strong>完整性: ${result.data.completeness}%</strong>
                     (${result.data.existingCount}/${result.data.totalTables} 个表存在)
                 </div>
                 <div class="table-grid">
             `;
-            
+
             Object.entries(tables).forEach(([key, table]) => {
                 const statusClass = table.exists ? 'status-ok' : 'status-missing';
                 const statusText = table.exists ? '✅ 存在' : '❌ 缺失';
-                
+
                 html += `
                     <div class="table-card">
                         <div class="table-name">${table.displayName || table.name}</div>
@@ -266,7 +267,7 @@
                     </div>
                 `;
             });
-            
+
             html += '</div>';
             container.innerHTML = html;
         }
@@ -328,10 +329,10 @@
                 }
 
                 showResult('manage-result', results, '创建表结果');
-                
+
                 // 重新检测表状态
                 setTimeout(() => testTableCheck(), 1000);
-                
+
             } catch (error) {
                 showResult('manage-result', { error: error.message }, '创建表错误');
             }
@@ -346,7 +347,7 @@
             try {
                 // 注意：这里需要一个删除表的 API，或者手动操作
                 alert(`请手动执行以下命令来删除表：\n\nwrangler d1 execute your-db-name --command="DROP TABLE IF EXISTS ${tableName};"`);
-                showResult('manage-result', { 
+                showResult('manage-result', {
                     message: `请手动删除表 ${tableName}`,
                     command: `wrangler d1 execute your-db-name --command="DROP TABLE IF EXISTS ${tableName};"`
                 }, '删除表操作');
@@ -360,10 +361,29 @@
             window.location.href = '/setup.html';
         }
 
+        // 测试自动修复跳转
+        async function testAutoRepair() {
+            try {
+                if (window.dbMonitor) {
+                    const result = await window.dbMonitor.autoRepair();
+                    showResult('manage-result', {
+                        message: result ? '自动修复已启动，即将跳转' : '无需修复或用户取消',
+                        repairStarted: result
+                    }, '自动修复测试');
+                } else {
+                    showResult('manage-result', {
+                        error: '数据库监控模块未加载，请先加载 database.js'
+                    }, '自动修复测试');
+                }
+            } catch (error) {
+                showResult('manage-result', { error: error.message }, '自动修复测试');
+            }
+        }
+
         // 运行自动化测试
         async function runAutoTest() {
             const testResults = [];
-            
+
             try {
                 // 测试1: 数据库连接
                 testResults.push({ test: '数据库连接', status: 'running' });
@@ -387,7 +407,7 @@
                 testResults[2].result = adminResult;
 
                 showResult('auto-test-result', testResults, '自动化测试结果');
-                
+
             } catch (error) {
                 showResult('auto-test-result', { error: error.message }, '自动化测试错误');
             }

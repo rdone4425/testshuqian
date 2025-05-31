@@ -97,31 +97,25 @@ export async function onRequest(context) {
         // 检查每个表是否存在
         for (const [key, tableInfo] of Object.entries(requiredTables)) {
             try {
-                // 使用更安全的方式检查表是否存在
-                // 尝试查询表的第一行，如果表不存在会抛出异常
-                await env.DB.prepare(`SELECT 1 FROM ${tableInfo.name} LIMIT 1`).first();
+                // 首先使用 sqlite_master 查询表是否存在（最可靠的方法）
+                const tableExists = await env.DB.prepare(
+                    'SELECT name FROM sqlite_master WHERE type="table" AND name=?'
+                ).bind(tableInfo.name).first();
 
-                // 如果没有抛出异常，说明表存在
-                tableStatus[key] = {
-                    exists: true,
-                    name: tableInfo.name,
-                    displayName: tableInfo.displayName,
-                    description: tableInfo.description
-                };
-                existingTables.push(key);
-
-            } catch (error) {
-                // 如果查询失败，说明表不存在或有其他问题
-                console.log(`表 ${tableInfo.name} 不存在或查询失败:`, error.message);
-
-                // 再次尝试使用 sqlite_master 查询（作为备用方案）
-                try {
-                    const result = await env.DB.prepare(
-                        `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
-                    ).bind(tableInfo.name).first();
-
-                    if (result && result.name) {
-                        // 表存在但可能为空或有权限问题
+                if (tableExists && tableExists.name) {
+                    // 表存在，再尝试查询确认表结构正常
+                    try {
+                        await env.DB.prepare(`SELECT 1 FROM ${tableInfo.name} LIMIT 1`).first();
+                        tableStatus[key] = {
+                            exists: true,
+                            name: tableInfo.name,
+                            displayName: tableInfo.displayName,
+                            description: tableInfo.description
+                        };
+                        existingTables.push(key);
+                    } catch (queryError) {
+                        // 表存在但查询失败，可能是表结构问题
+                        console.warn(`表 ${tableInfo.name} 存在但查询异常:`, queryError.message);
                         tableStatus[key] = {
                             exists: true,
                             name: tableInfo.name,
@@ -130,30 +124,32 @@ export async function onRequest(context) {
                             warning: '表存在但查询异常'
                         };
                         existingTables.push(key);
-                    } else {
-                        // 表确实不存在
-                        tableStatus[key] = {
-                            exists: false,
-                            name: tableInfo.name,
-                            displayName: tableInfo.displayName,
-                            description: tableInfo.description,
-                            sql: tableInfo.sql
-                        };
-                        missingTables.push(key);
                     }
-                } catch (masterError) {
-                    // sqlite_master 查询也失败，可能是数据库问题
-                    console.error(`检查表 ${tableInfo.name} 时出错:`, masterError);
+                } else {
+                    // 表不存在
+                    console.log(`表 ${tableInfo.name} 不存在`);
                     tableStatus[key] = {
                         exists: false,
                         name: tableInfo.name,
                         displayName: tableInfo.displayName,
                         description: tableInfo.description,
-                        sql: tableInfo.sql,
-                        error: masterError.message
+                        sql: tableInfo.sql
                     };
                     missingTables.push(key);
                 }
+
+            } catch (error) {
+                // sqlite_master 查询失败，可能是数据库连接问题
+                console.error(`检查表 ${tableInfo.name} 时出错:`, error);
+                tableStatus[key] = {
+                    exists: false,
+                    name: tableInfo.name,
+                    displayName: tableInfo.displayName,
+                    description: tableInfo.description,
+                    sql: tableInfo.sql,
+                    error: error.message
+                };
+                missingTables.push(key);
             }
         }
 

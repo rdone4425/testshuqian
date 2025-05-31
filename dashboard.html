@@ -325,12 +325,16 @@
                 } else if (dbStatus.status === 'incomplete') {
                     dbStatusEl.textContent = `不完整 (${dbStatus.completeness}%)`;
                     dbStatusEl.className = 'status status-warning';
-                    dbStatusEl.onclick = () => {
-                        if (confirm('检测到数据库表缺失，是否立即修复？')) {
-                            window.dbMonitor.autoRepair();
+
+                    // 自动跳转到修复页面
+                    console.warn('检测到数据库不完整，准备自动跳转到修复页面');
+                    setTimeout(() => {
+                        if (confirm(`数据库不完整 (${dbStatus.completeness}%)，缺失表: ${dbStatus.missingTables ? dbStatus.missingTables.join(', ') : '未知'}\\n\\n是否立即修复？`)) {
+                            const missingTables = dbStatus.missingTables || [];
+                            const repairUrl = `/setup.html?mode=repair&missing=${encodeURIComponent(JSON.stringify(missingTables))}`;
+                            window.location.href = repairUrl;
                         }
-                    };
-                    dbStatusEl.style.cursor = 'pointer';
+                    }, 1000); // 延迟1秒显示确认对话框
                 } else {
                     dbStatusEl.textContent = '异常';
                     dbStatusEl.className = 'status status-error';
@@ -381,7 +385,7 @@
                         // 更新界面显示
                         refreshStats();
 
-                        // 可选：显示通知
+                        // 显示修复通知并提供自动跳转
                         if (result.missingTables && result.missingTables.length > 0) {
                             const notification = document.createElement('div');
                             notification.style.cssText = `
@@ -394,28 +398,33 @@
                                 border-radius: 8px;
                                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                                 z-index: 1000;
-                                max-width: 300px;
+                                max-width: 350px;
                             `;
+
+                            const missingTablesStr = result.missingTables.join(', ');
+                            const repairUrl = `/setup.html?mode=repair&missing=${encodeURIComponent(JSON.stringify(result.missingTables))}`;
+
                             notification.innerHTML = `
                                 <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ 数据库监控警告</h4>
-                                <p style="color: #856404; margin: 0 0 10px 0;">检测到缺失的数据库表: ${result.missingTables.join(', ')}</p>
-                                <button onclick="window.dbMonitor.autoRepair(); this.parentElement.remove();"
-                                        style="background: #856404; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
-                                    立即修复
+                                <p style="color: #856404; margin: 0 0 10px 0;">检测到缺失的数据库表: ${missingTablesStr}</p>
+                                <p style="color: #856404; margin: 0 0 10px 0; font-size: 12px;">完整性: ${result.completeness}%</p>
+                                <button onclick="window.location.href='${repairUrl}'; this.parentElement.remove();"
+                                        style="background: #856404; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                                    🔧 立即修复
                                 </button>
                                 <button onclick="this.parentElement.remove();"
-                                        style="background: #6c757d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;">
-                                    忽略
+                                        style="background: #6c757d; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-left: 5px;">
+                                    稍后处理
                                 </button>
                             `;
                             document.body.appendChild(notification);
 
-                            // 10秒后自动消失
+                            // 15秒后自动消失
                             setTimeout(() => {
                                 if (notification.parentElement) {
                                     notification.remove();
                                 }
-                            }, 10000);
+                            }, 15000);
                         }
                     }
                 });
